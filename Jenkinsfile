@@ -19,6 +19,28 @@ pipeline {
                 }
             }
         }
+         stages {
+        stage('Prepare Backend Env') {
+            steps {
+                dir('services/backend-service') {
+                    withCredentials([file(credentialsId: 'backend-env', variable: 'BACKEND_ENV_FILE')]) {
+                        sh 'cp $BACKEND_ENV_FILE .env'
+                        sh 'cat .env'   // just to debug, remove later
+                    }
+                }
+            }
+        }
+
+        stage('Prepare Frontend Env') {
+            steps {
+                dir('services/frontend-service') {
+                    withCredentials([file(credentialsId: 'frontend-env', variable: 'FRONTEND_ENV_FILE')]) {
+                        sh 'cp $FRONTEND_ENV_FILE .env'
+                        sh 'cat .env'   // just to debug, remove later
+                    }
+                }
+            }
+        }
 
         stage('Build Docker Images') {
             steps {
