@@ -2,29 +2,31 @@ pipeline {
     agent any
 
     environment {
-        KUBECONFIG = '/var/lib/jenkins/.kube/config' 
+        DOCKERHUB_USER = "jatinjaiswal"   // your Docker Hub username
     }
 
     stages {
-        stage('Checkout') {
+        stage('Checkout Code') {
             steps {
-                script {
-                    withCredentials([string(credentialsId: 'google-chat-url', variable: 'GOOGLE_CHAT_URL')]) {
-                        googlechatnotification url: "${GOOGLE_CHAT_URL}",
-                        message: "🔔 Build #${env.BUILD_NUMBER} for ${env.JOB_NAME} started."
-                    }
-                
+                // Using Secret Text for GitHub token
+                withCredentials([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
+                    sh '''
+                    # Clone repo using token
+                    rm -rf repo || true
+                    git clone https://$GITHUB_TOKEN@github.com/Jatin-Jaiswal/your-repo.git repo
+                    cd repo
+                    '''
                 }
-                git branch: 'main', credentialsId: 'git', url: 'git@bitbucket.org:aashka7240/jenkins-practice.git'
             }
         }
-        
-        stage('Docker Build') {
+
+        stage('Build Docker Images') {
             steps {
-                 script {
-                    sh '''#!/bin/bash
-                    docker build -t aashkajain/backend:$BUILD_NUMBER ./server
-                    docker build -t aashkajain/frontend:$BUILD_NUMBER ./client
+                script {
+                    sh '''
+                    echo "🚀 Building Docker images..."
+                    docker build -t $DOCKERHUB_USER/backend:$BUILD_NUMBER ./repo/server
+                    docker build -t $DOCKERHUB_USER/frontend:$BUILD_NUMBER ./repo/client
                     '''
                 }
             }
@@ -32,78 +34,48 @@ pipeline {
 
         stage('Push Docker Images') {
             steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        sh '''
+                        echo "🔑 Logging into Docker Hub..."
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
 
-                 script {
-            withCredentials([usernamePassword(credentialsId: 'dockerhub-registry-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                sh '''#!/bin/bash
-                docker login -u $DOCKER_USER -p $DOCKER_PASS
-                docker push aashkajain/backend:$BUILD_NUMBER
-                docker push aashkajain/frontend:$BUILD_NUMBER
-                '''
-            }
-        }   
-                
+                        echo "📤 Pushing images..."
+                        docker push $DOCKERHUB_USER/backend:$BUILD_NUMBER
+                        docker push $DOCKERHUB_USER/frontend:$BUILD_NUMBER
+                        '''
+                    }
+                }
             }
         }
 
-        
-        
-        stage('Deploy to Kubernetes') {
+        stage('Deploy Locally') {
             steps {
-               script {
-                // Replace the BUILD_NUMBER placeholder with the actual build number
-                    sh '''#!/bin/bash
-                    sed -i "s/BUILD_NUMBER/${BUILD_NUMBER}/g" server/server-deployment.yaml
-                    sed -i "s/BUILD_NUMBER/${BUILD_NUMBER}/g" client/client-deployment.yaml
+                script {
+                    sh '''
+                    echo "🛑 Stopping old containers..."
+                    docker rm -f backend-container || true
+                    docker rm -f frontend-container || true
 
-                    cat client/client-deployment.yaml
-                    cat server/server-deployment.yaml
+                    echo "📥 Pulling latest images..."
+                    docker pull $DOCKERHUB_USER/backend:$BUILD_NUMBER
+                    docker pull $DOCKERHUB_USER/frontend:$BUILD_NUMBER
 
-
-
-                    kubectl apply -f server/server-deployment.yaml
-                    kubectl apply -f server/server-service.yaml
-                    kubectl apply -f client/client-deployment.yaml
-                    kubectl apply -f client/client-service.yaml
-                    kubectl rollout restart deploy client-deployment
-                    kubectl rollout restart deploy server-deployment
+                    echo "▶️ Starting new containers..."
+                    docker run -d -p 5000:5000 --name backend-container $DOCKERHUB_USER/backend:$BUILD_NUMBER
+                    docker run -d -p 3000:3000 --name frontend-container $DOCKERHUB_USER/frontend:$BUILD_NUMBER
                     '''
                 }
             }
         }
     }
-    
+
     post {
-        always {
-            script {
-                def log = currentBuild.rawBuild.getLog(100).join('\n')
-                writeFile file: 'console.log', text: log
-                
-            }
-        }
-         success {
-            script {
-                def log = readFile('console.log')
-                withCredentials([string(credentialsId: 'google-chat-url', variable: 'GOOGLE_CHAT_URL')]) {
-                    def message = "✅ ${env.JOB_NAME} : Build #${env.BUILD_NUMBER} - ${currentBuild.currentResult}: Check output at ${env.BUILD_URL}\n\nLog:\n${log.take(4000)}"
-                    echo "Google Chat URL: ${GOOGLE_CHAT_URL}"
-                    googlechatnotification url: "${GOOGLE_CHAT_URL}",
-                    message: message
-                }
-                cleanWs()
-            }
+        success {
+            echo "✅ Deployment successful! Frontend: http://localhost:3000 | Backend: http://localhost:5000"
         }
         failure {
-            script {
-                def log = readFile('console.log')
-                withCredentials([string(credentialsId: 'google-chat-url', variable: 'GOOGLE_CHAT_URL')]) {
-                    def message = "❌ ${env.JOB_NAME} : Build #${env.BUILD_NUMBER} - ${currentBuild.currentResult}: Check output at ${env.BUILD_URL}\n\nLog:\n${log.take(4000)}"
-                    echo "Google Chat URL: ${GOOGLE_CHAT_URL}"
-                    googlechatnotification url: "${GOOGLE_CHAT_URL}",
-                    message: message
-                }
-                cleanWs()
-            }
+            echo "❌ Build or deployment failed. Check Jenkins logs."
         }
     }
 }
