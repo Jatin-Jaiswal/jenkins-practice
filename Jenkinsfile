@@ -22,7 +22,7 @@ pipeline {
          stages {
         stage('Prepare Backend Env') {
             steps {
-                dir('services/backend-service') {
+                dir('repo/server') {
                     withCredentials([file(credentialsId: 'backend-env', variable: 'BACKEND_ENV_FILE')]) {
                         sh 'cp $BACKEND_ENV_FILE .env'
                         sh 'cat .env'   // just to debug, remove later
@@ -33,7 +33,7 @@ pipeline {
 
         stage('Prepare Frontend Env') {
             steps {
-                dir('services/frontend-service') {
+                dir('repo/client') {
                     withCredentials([file(credentialsId: 'frontend-env', variable: 'FRONTEND_ENV_FILE')]) {
                         sh 'cp $FRONTEND_ENV_FILE .env'
                         sh 'cat .env'   // just to debug, remove later
