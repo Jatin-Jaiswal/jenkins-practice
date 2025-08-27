@@ -1,4 +1,4 @@
- # Use the official Node.js image as a parent image
+# Use the official Node.js image as a parent image
    FROM node:16
 
    # Set the working directory in the container
@@ -12,6 +12,9 @@
 
    # Copy the rest of the application code
    COPY . .
+
+   # Copy the environment variable file
+   COPY .env .env
 
    # Expose the port the app runs on
    EXPOSE 5000
