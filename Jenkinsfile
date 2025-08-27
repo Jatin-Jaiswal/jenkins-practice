@@ -2,30 +2,28 @@ pipeline {
     agent any
 
     environment {
-        DOCKERHUB_USER = "jatinjaiswal"   // your Docker Hub username
+        DOCKERHUB_USER = "jatinjaiswal"
     }
 
     stages {
         stage('Checkout Code') {
             steps {
-                // Using Secret Text for GitHub token
                 withCredentials([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
                     sh '''
-                    # Clone repo using token
                     rm -rf repo || true
-                    git clone https://$GITHUB_TOKEN@github.com/Jatin-Jaiswal/your-repo.git repo
-                    cd repo
+                    git clone https://$GITHUB_TOKEN@github.com/Jatin-Jaiswal/jenkins-practice.git repo
                     '''
                 }
             }
         }
-         stages {
+
         stage('Prepare Backend Env') {
             steps {
                 dir('repo/server') {
                     withCredentials([file(credentialsId: 'backend-env', variable: 'BACKEND_ENV_FILE')]) {
                         sh 'cp $BACKEND_ENV_FILE .env'
-                        sh 'cat .env'   // just to debug, remove later
+                        sh 'ls -la .'
+                        sh 'cat .env'
                     }
                 }
             }
@@ -36,7 +34,8 @@ pipeline {
                 dir('repo/client') {
                     withCredentials([file(credentialsId: 'frontend-env', variable: 'FRONTEND_ENV_FILE')]) {
                         sh 'cp $FRONTEND_ENV_FILE .env'
-                        sh 'cat .env'   // just to debug, remove later
+                        sh 'ls -la .'
+                        sh 'cat .env'
                     }
                 }
             }
@@ -44,50 +43,44 @@ pipeline {
 
         stage('Build Docker Images') {
             steps {
-                script {
-                    sh '''
-                    echo "🚀 Building Docker images..."
-                    docker build -t $DOCKERHUB_USER/backend:$BUILD_NUMBER ./repo/server
-                    docker build -t $DOCKERHUB_USER/frontend:$BUILD_NUMBER ./repo/client
-                    '''
-                }
+                sh '''
+                echo "🚀 Building Docker images..."
+                docker build -t $DOCKERHUB_USER/backend:$BUILD_NUMBER ./repo/server
+                docker build -t $DOCKERHUB_USER/frontend:$BUILD_NUMBER ./repo/client
+                '''
             }
         }
 
         stage('Push Docker Images') {
             steps {
-                script {
-                    withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        sh '''
-                        echo "🔑 Logging into Docker Hub..."
-                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh '''
+                    echo "🔑 Logging into Docker Hub..."
+                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
 
-                        echo "📤 Pushing images..."
-                        docker push $DOCKERHUB_USER/backend:$BUILD_NUMBER
-                        docker push $DOCKERHUB_USER/frontend:$BUILD_NUMBER
-                        '''
-                    }
+                    echo "📤 Pushing images..."
+                    docker push $DOCKERHUB_USER/backend:$BUILD_NUMBER
+                    docker push $DOCKERHUB_USER/frontend:$BUILD_NUMBER
+                    '''
                 }
             }
         }
 
         stage('Deploy Locally') {
             steps {
-                script {
-                    sh '''
-                    echo "🛑 Stopping old containers..."
-                    docker rm -f backend-container || true
-                    docker rm -f frontend-container || true
+                sh '''
+                echo "🛑 Stopping old containers..."
+                docker rm -f backend-container || true
+                docker rm -f frontend-container || true
 
-                    echo "📥 Pulling latest images..."
-                    docker pull $DOCKERHUB_USER/backend:$BUILD_NUMBER
-                    docker pull $DOCKERHUB_USER/frontend:$BUILD_NUMBER
+                echo "📥 Pulling latest images..."
+                docker pull $DOCKERHUB_USER/backend:$BUILD_NUMBER
+                docker pull $DOCKERHUB_USER/frontend:$BUILD_NUMBER
 
-                    echo "▶️ Starting new containers..."
-                    docker run -d -p 5000:5000 --name backend-container $DOCKERHUB_USER/backend:$BUILD_NUMBER
-                    docker run -d -p 3000:3000 --name frontend-container $DOCKERHUB_USER/frontend:$BUILD_NUMBER
-                    '''
-                }
+                echo "▶️ Starting new containers..."
+                docker run -d -p 5000:5000 --name backend-container $DOCKERHUB_USER/backend:$BUILD_NUMBER
+                docker run -d -p 3000:3000 --name frontend-container $DOCKERHUB_USER/frontend:$BUILD_NUMBER
+                '''
             }
         }
     }

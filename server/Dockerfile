@@ -1,23 +1,20 @@
 # Use the official Node.js image as a parent image
-   FROM node:16
+FROM node:16
 
-   # Set the working directory in the container
-   WORKDIR /app
+# Set the working directory in the container
+WORKDIR /app
 
-   # Copy package.json and package-lock.json
-   COPY package*.json ./
+# Copy package.json and package-lock.json
+COPY package*.json ./
 
-   # Install dependencies
-   RUN npm install
+# Install dependencies
+RUN npm install
 
-   # Copy the rest of the application code
-   COPY . .
+# Copy the rest of the application code
+COPY . .
 
-   # Copy the environment variable file
-   COPY .env .env
+# Expose the port the app runs on
+EXPOSE 5000
 
-   # Expose the port the app runs on
-   EXPOSE 5000
-
-   # Define the command to run the app
-   CMD ["npm", "start"]
+# Define the command to run the app
+CMD ["npm", "start"]
