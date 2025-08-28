@@ -41,6 +41,40 @@ pipeline {
             }
         }
 
+        stage('SonarQube Analysis - Server') {
+            steps {
+                dir('repo/server') {
+                    withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                        sh '''
+                            echo "🔍 Running SonarQube Analysis for Server..."
+                            /usr/bin/sonar-scanner \
+                              -Dsonar.projectKey=jenkins-practice-server \
+                              -Dsonar.sources=. \
+                              -Dsonar.host.url=http://localhost:9000 \
+                              -Dsonar.login=$SONAR_TOKEN
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('SonarQube Analysis - Client') {
+            steps {
+                dir('repo/client') {
+                    withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                        sh '''
+                            echo "🔍 Running SonarQube Analysis for Client..."
+                            /usr/bin/sonar-scanner \
+                              -Dsonar.projectKey=jenkins-practice-client \
+                              -Dsonar.sources=src \
+                              -Dsonar.host.url=http://localhost:9000 \
+                              -Dsonar.login=$SONAR_TOKEN
+                        '''
+                    }
+                }
+            }
+        }
+
         stage('Build Docker Images') {
             steps {
                 sh '''
@@ -84,18 +118,6 @@ pipeline {
             }
         }
 
-        stage('SonarQube Analysis') {
-            steps {
-                sh '''
-                docker-compose up -d sonarqube db
-                sleep 60 # Wait for SonarQube to be ready
-                sonar-scanner \
-                  -Dsonar.host.url=http://localhost:9000 \
-                  -Dsonar.login=$SONAR_TOKEN
-                docker-compose down
-                '''
-            }
-        }
     }
 
     post {
