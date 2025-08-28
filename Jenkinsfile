@@ -45,8 +45,8 @@ pipeline {
             steps {
                 sh '''
                 echo "🚀 Building Docker images..."
-                docker build -t $DOCKERHUB_USER/backend:$BUILD_NUMBER ./repo/server
-                docker build -t $DOCKERHUB_USER/frontend:$BUILD_NUMBER ./repo/client
+                docker build --no-cache -t $DOCKERHUB_USER/backend:$BUILD_NUMBER ./repo/server
+                docker build --no-cache -t $DOCKERHUB_USER/frontend:$BUILD_NUMBER ./repo/client
                 '''
             }
         }
