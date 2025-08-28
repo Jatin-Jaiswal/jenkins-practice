@@ -83,6 +83,19 @@ pipeline {
                 '''
             }
         }
+
+        stage('SonarQube Analysis') {
+            steps {
+                sh '''
+                docker-compose up -d sonarqube db
+                sleep 60 # Wait for SonarQube to be ready
+                sonar-scanner \
+                  -Dsonar.host.url=http://localhost:9000 \
+                  -Dsonar.login=$SONAR_TOKEN
+                docker-compose down
+                '''
+            }
+        }
     }
 
     post {
