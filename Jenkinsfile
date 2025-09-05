@@ -22,36 +22,45 @@ pipeline {
                 dir('repo/server') {
                     withCredentials([file(credentialsId: 'backend-env', variable: 'BACKEND_ENV_FILE')]) {
                         sh 'cp $BACKEND_ENV_FILE .env'
-                        sh 'ls -la .'
-                        sh 'cat .env'
                     }
                 }
-            }
+            }   
         }
 
         stage('Prepare Frontend Env') {
-            steps {
-                dir('repo/client') {
-                    withCredentials([file(credentialsId: 'frontend-env', variable: 'FRONTEND_ENV_FILE')]) {
-                        sh 'cp $FRONTEND_ENV_FILE .env'
-                        sh 'ls -la .'
-                        sh 'cat .env'
-                    }
-                }
+    steps {
+        dir('repo/client') {
+            withCredentials([file(credentialsId: 'frontend-env', variable: 'FRONTEND_ENV_FILE')]) {
+                sh '''
+                # Copy the secret .env
+                cp $FRONTEND_ENV_FILE .env
+
+                # Fetch backend LoadBalancer IP dynamically from GKE
+                BACKEND_IP=$(kubectl get svc server-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+                # Replace backend URL in .env
+                sed -i "s|REACT_APP_API_URL=.*|REACT_APP_API_URL=http://$BACKEND_IP:5000|" .env
+
+                # Show final .env for verification
+                cat .env
+                '''
             }
         }
+    }
+}
+
 
         stage('SonarQube Analysis - Server') {
             steps {
                 dir('repo/server') {
                     withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
                         sh '''
-                            echo "🔍 Running SonarQube Analysis for Server..."
-                            /usr/bin/sonar-scanner \
-                              -Dsonar.projectKey=jenkins-practice-server \
-                              -Dsonar.sources=. \
-                              -Dsonar.host.url=http://localhost:9000 \
-                              -Dsonar.login=$SONAR_TOKEN
+                        echo "🔍 Running SonarQube Analysis for Server..."
+                        /usr/bin/sonar-scanner \
+                          -Dsonar.projectKey=jenkins-practice-server \
+                          -Dsonar.sources=. \
+                          -Dsonar.host.url=http://localhost:9000 \
+                          -Dsonar.login=$SONAR_TOKEN
                         '''
                     }
                 }
@@ -63,12 +72,12 @@ pipeline {
                 dir('repo/client') {
                     withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
                         sh '''
-                            echo "🔍 Running SonarQube Analysis for Client..."
-                            /usr/bin/sonar-scanner \
-                              -Dsonar.projectKey=jenkins-practice-client \
-                              -Dsonar.sources=src \
-                              -Dsonar.host.url=http://localhost:9000 \
-                              -Dsonar.login=$SONAR_TOKEN
+                        echo "🔍 Running SonarQube Analysis for Client..."
+                        /usr/bin/sonar-scanner \
+                          -Dsonar.projectKey=jenkins-practice-client \
+                          -Dsonar.sources=src \
+                          -Dsonar.host.url=http://localhost:9000 \
+                          -Dsonar.login=$SONAR_TOKEN
                         '''
                     }
                 }
@@ -100,20 +109,33 @@ pipeline {
             }
         }
 
-        stage('Deploy Locally') {
+        stage('GCP Authentication') {
+            steps {
+                withCredentials([file(credentialsId: 'gcp-sa-key', variable: 'GCP_KEY')]) {
+                    sh '''
+                    echo "🔑 Authenticating with GCP..."
+                    gcloud auth activate-service-account --key-file=$GCP_KEY
+                    gcloud config set project jenkins-practice-gke
+                    gcloud container clusters get-credentials mern-cluster --zone us-central1-a --project jenkins-practice-gke
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy to GKE') {
             steps {
                 sh '''
-                echo "🛑 Stopping old containers..."
-                docker rm -f backend-container || true
-                docker rm -f frontend-container || true
+                echo "📦 Updating Kubernetes deployments..."
 
-                echo "📥 Pulling latest images..."
-                docker pull $DOCKERHUB_USER/backend:$BUILD_NUMBER
-                docker pull $DOCKERHUB_USER/frontend:$BUILD_NUMBER
+                # Update backend deployment
+                kubectl set image deployment/server-deployment server=$DOCKERHUB_USER/backend:$BUILD_NUMBER --record
 
-                echo "▶️ Starting new containers..."
-                docker run -d -p 5000:5000 --name backend-container $DOCKERHUB_USER/backend:$BUILD_NUMBER
-                docker run -d -p 3000:3000 --name frontend-container $DOCKERHUB_USER/frontend:$BUILD_NUMBER
+                # Update frontend deployment
+                kubectl set image deployment/client-deployment client=$DOCKERHUB_USER/frontend:$BUILD_NUMBER --record
+
+                # Wait for rollout to complete
+                kubectl rollout status deployment/server-deployment
+                kubectl rollout status deployment/client-deployment
                 '''
             }
         }
@@ -122,7 +144,7 @@ pipeline {
 
     post {
         success {
-            echo "✅ Deployment successful! Frontend: http://localhost:3000 | Backend: http://localhost:5000"
+            echo "✅ Deployment successful! Backend & Frontend updated on GKE."
         }
         failure {
             echo "❌ Build or deployment failed. Check Jenkins logs."

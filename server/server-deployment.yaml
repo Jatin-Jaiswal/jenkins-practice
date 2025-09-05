@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: server
-        image: aashkajain/backend:BUILD_NUMBER
+        image: gcr.io/jenkins-practice-gke/backend:latest
         ports:
         - containerPort: 5000
         env:
