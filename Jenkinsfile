@@ -29,7 +29,7 @@ pipeline {
                     gcloud config set project jenkins-practice-gke
 
                     # Get credentials for your GKE cluster
-                    gcloud container clusters get-credentials jenkins-cluster --zone us-central1-a
+                    gcloud container clusters get-credentials mern-cluster --zone us-central1-a
                     '''
                 }
             }
