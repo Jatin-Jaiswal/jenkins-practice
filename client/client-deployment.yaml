@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: client
-        image: aashkajain/frontend:BUILD_NUMBER
+        image: gcr.io/jenkins-practice-gke/frontend:latest
         ports:
         - containerPort: 3000
         env:
