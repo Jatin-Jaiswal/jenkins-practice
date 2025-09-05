@@ -13,7 +13,4 @@ RUN echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] http://packages.c
 # Install gke-gcloud-auth-plugin
 RUN apt-get install -y google-cloud-sdk-gke-gcloud-auth-plugin
 
-# Ensure plugin is in PATH
-RUN ln -s /usr/lib/google-cloud-sdk/bin/gke-gcloud-auth-plugin /usr/bin/gke-gcloud-auth-plugin
-
 USER jenkins
