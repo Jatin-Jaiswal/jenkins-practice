@@ -67,13 +67,13 @@ pipeline {
 
         stage('SonarQube Analysis - Server') {
             steps {
-                // Your SonarQube server scan commands
+                echo 'Skipping SonarQube analysis for server.'
             }
         }
 
         stage('SonarQube Analysis - Client') {
             steps {
-                // Your SonarQube client scan commands
+                echo 'Skipping SonarQube analysis for client.'
             }
         }
 
